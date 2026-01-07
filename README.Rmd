@@ -41,24 +41,22 @@ Walk the STAC catalog to get all products, datasets, and their Zarr URLs:
 ```{r eval=FALSE}
 library(cmemsarco)
 
+## get the cached version
+catalog <- cmems_catalog()
 # Get everything (takes a few minutes)
 #catalog <- build_cmems_catalog()
 
 # Or specific products
-catalog <- cmems_catalog(
- product_ids = c(
-
-   "SEALEVEL_GLO_PHY_L4_NRT_008_046",
-   "GLOBAL_ANALYSISFORECAST_PHY_001_024"
- )
-)
+# catalog <- build_cmems_catalog(
+#  product_ids = c(
+# 
+#    "SEALEVEL_GLO_PHY_L4_NRT_008_046",
+#    "GLOBAL_ANALYSISFORECAST_PHY_001_024"
+#  )
+# )
 
 catalog
-#> # A tibble
-#>   product_id                      dataset_id                    version timeChunked_url
-#>   <chr>                           <chr>                         <chr>   <chr>
-#> 1 SEALEVEL_GLO_PHY_L4_NRT_008_046 cmems_obs-sl_glo_phy-ssh_...  202411  https://s3...
-#> ...
+
 ```
 
 ### Get a GDAL source
@@ -67,7 +65,7 @@ catalog
 # Filter to what you need
 sla <- catalog |>
  dplyr::filter(product_id == "SEALEVEL_GLO_PHY_L4_NRT_008_046") |>
- cmems_latest()  # latest version per dataset
+ get_latest_versions()  # latest version per dataset
 
 # Get the GDAL-ready DSN
 dsn <- sla$timeChunked_gdal[1]

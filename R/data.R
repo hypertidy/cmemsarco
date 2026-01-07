@@ -20,4 +20,4 @@
 #'
 #' @source STAC catalog at <https://stac.marine.copernicus.eu/metadata/catalog.stac.json>
 #' @seealso [cmems_catalog()] to refresh, [cmems_latest()] to filter to latest versions
-"cmems_catalog"
+"cmems_catalog_data"
