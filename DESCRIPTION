@@ -16,3 +16,5 @@ Imports:
     jsonlite,
     purrr,
     tidyr
+URL: https://github.com/hypertidy/cmemsarco
+BugReports: https://github.com/hypertidy/cmemsarco/issues
