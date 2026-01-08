@@ -17,16 +17,16 @@ CMEMS_S3_ENDPOINT <- "s3.waw3-1.cloudferro.com"
 
 # Setup -------------------------------------------------------------------
 
-#' Set up GDAL environment for CMEMS access
+#' Set up GDAL environment for CMEMS S3 access
 #'
-#' Sets AWS environment variables required for anonymous S3 access to CMEMS.
+#' Sets AWS environment variables required for `/vsis3/` access to CMEMS.
+#' Not needed if using the default `/vsicurl/` DSNs.
 #'
 #' @return Invisible TRUE
 #' @export
 #' @examples
 #' cmems_setup()
 cmems_setup <- function() {
-
   Sys.setenv(
     AWS_NO_SIGN_REQUEST = "YES",
     AWS_S3_ENDPOINT = CMEMS_S3_ENDPOINT
@@ -36,7 +36,10 @@ cmems_setup <- function() {
 
 # URL/DSN conversion ------------------------------------------------------
 
-#' Convert S3 HTTPS URL to GDAL Zarr DSN
+#' Convert URL to GDAL Zarr DSN (vsicurl)
+#'
+#' Creates a GDAL DSN using `/vsicurl/` which works without environment
+#' variable configuration.
 #'
 #' @param url HTTPS URL to a Zarr store
 #' @param array Optional array/variable name to access directly
@@ -48,6 +51,30 @@ cmems_setup <- function() {
 #' cmems_gdal_dsn(url)
 #' cmems_gdal_dsn(url, array = "sla")
 cmems_gdal_dsn <- function(url, array = NULL) {
+  if (is.na(url) || is.null(url)) return(NA_character_)
+
+  if (is.null(array)) {
+    sprintf('ZARR:"/vsicurl/%s"', url)
+  } else {
+    sprintf('ZARR:"/vsicurl/%s":/%s', url, array)
+  }
+}
+
+#' Convert URL to GDAL Zarr DSN (vsis3)
+#'
+#' Creates a GDAL DSN using `/vsis3/` which requires [cmems_setup()] to
+#' configure AWS environment variables first.
+#'
+#' @param url HTTPS URL to a Zarr store
+#' @param array Optional array/variable name to access directly
+#'
+#' @return GDAL DSN string
+#' @export
+#' @examples
+#' url <- "https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/PRODUCT/dataset/timeChunked.zarr"
+#' cmems_setup()
+#' cmems_gdal_dsn_s3(url)
+cmems_gdal_dsn_s3 <- function(url, array = NULL) {
   if (is.na(url) || is.null(url)) return(NA_character_)
 
   parts <- regmatches(url, regexec("https://[^/]+/(.+)", url))[[1]]
@@ -82,7 +109,7 @@ cmems_s3_uri <- function(url) {
 #' Fetch JSON from URL
 #' @noRd
 fetch_json <- function(url) {
- httr2::request(url) |>
+  httr2::request(url) |>
     httr2::req_perform() |>
     httr2::resp_body_json()
 }
@@ -99,6 +126,7 @@ stac_product_ids <- function() {
 
 #' Get datasets from STAC for one product
 #' @noRd
+#' @importFrom tibble tibble
 stac_product_datasets <- function(product_id) {
   product_url <- file.path(CMEMS_STAC_ROOT, product_id, "product.stac.json")
 
@@ -139,8 +167,7 @@ stac_product_datasets <- function(product_id) {
 #' @param progress Show progress messages
 #'
 #' @return A tibble with columns: product_id, dataset_version_id, dataset_id,
-#'   version, timeChunked_url, geoChunked_url, native_url, plus _gdal and _s3
-#'   variants
+#'   version, timeChunked_url, geoChunked_url, native_url, and GDAL/S3 variants
 #' @export
 #' @examples
 #' \dontrun{
@@ -159,7 +186,6 @@ cmems_catalog <- function(product_ids = NULL, progress = TRUE) {
 
   if (progress) message(sprintf("Processing %d products...", length(product_ids)))
 
-  ##catalog <- future_map_dfr(seq_along(product_ids), function(i) {
   catalog <- purrr::map_dfr(seq_along(product_ids), function(i) {
     pid <- product_ids[i]
     if (progress) message(sprintf("  [%d/%d] %s", i, length(product_ids), pid))
@@ -179,8 +205,13 @@ cmems_catalog <- function(product_ids = NULL, progress = TRUE) {
         sub(".*_(\\d{6})$", "\\1", dataset_version_id),
         NA_character_
       ),
+      # vsicurl DSNs (no setup needed)
       timeChunked_gdal = purrr::map_chr(timeChunked_url, cmems_gdal_dsn),
       geoChunked_gdal = purrr::map_chr(geoChunked_url, cmems_gdal_dsn),
+      # vsis3 DSNs (needs cmems_setup())
+      timeChunked_gdals3 = purrr::map_chr(timeChunked_url, cmems_gdal_dsn_s3),
+      geoChunked_gdals3 = purrr::map_chr(geoChunked_url, cmems_gdal_dsn_s3),
+      # s3:// URIs
       timeChunked_s3 = purrr::map_chr(timeChunked_url, cmems_s3_uri),
       geoChunked_s3 = purrr::map_chr(geoChunked_url, cmems_s3_uri)
     )
@@ -247,15 +278,21 @@ cmems_arco_url <- function(product_id, dataset_id, version,
 #'
 #' @inheritParams cmems_arco_url
 #' @param array Optional array/variable name
+#' @param use_s3 Use `/vsis3/` instead of `/vsicurl/` (requires [cmems_setup()])
 #'
 #' @return GDAL DSN string
 #' @export
 cmems_arco_dsn <- function(product_id, dataset_id, version,
                            chunk_type = c("time", "geo"),
                            bucket_version = "045",
-                           array = NULL) {
+                           array = NULL,
+                           use_s3 = FALSE) {
   url <- cmems_arco_url(product_id, dataset_id, version, chunk_type, bucket_version)
-  cmems_gdal_dsn(url, array)
+  if (use_s3) {
+    cmems_gdal_dsn_s3(url, array)
+  } else {
+    cmems_gdal_dsn(url, array)
+  }
 }
 
 # CLI helper --------------------------------------------------------------
@@ -267,8 +304,12 @@ cmems_arco_dsn <- function(product_id, dataset_id, version,
 #' @return Shell command string
 #' @export
 cmems_gdalinfo_cmd <- function(dsn) {
-  sprintf(
-    'AWS_NO_SIGN_REQUEST=YES AWS_S3_ENDPOINT=%s gdalinfo %s',
-    CMEMS_S3_ENDPOINT, shQuote(dsn)
-  )
+  if (grepl("vsis3", dsn)) {
+    sprintf(
+      'AWS_NO_SIGN_REQUEST=YES AWS_S3_ENDPOINT=%s gdalinfo %s',
+      CMEMS_S3_ENDPOINT, shQuote(dsn)
+    )
+  } else {
+    sprintf('gdalinfo %s', shQuote(dsn))
+  }
 }

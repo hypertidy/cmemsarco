@@ -10,6 +10,11 @@ knitr::opts_chunk$set(
 )
 ```
 
+<!-- badges: start -->
+  [![R-CMD-check](https://github.com/hypertidy/cmemsarco/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/hypertidy/cmemsarco/actions/workflows/R-CMD-check.yaml)
+  <!-- badges: end -->
+  
+  
 # cmemsarco
  
 Cloud-native access to Copernicus Marine (CMEMS) ARCO Zarr stores. No file downloads, no directory listings, no NetCDF wrangling - just URLs and GDAL.
@@ -33,12 +38,14 @@ CMEMS provides Analysis-Ready Cloud-Optimized (ARCO) Zarr stores for their marin
 The S3 buckets don't allow LIST operations, but GDAL's Zarr driver doesn't need them - it reads `/.zmetadata` and derives chunk paths from the Zarr spec. This means you can go straight from URL to pixels with no intermediate steps.
 
 ## Usage
+ 
 
 cmemsarco comes with a ready to use catalog: 
 
 ```{r catalog}
 library(cmemsarco)
 data(cmems_catalog_data)
+catalog <- cmems_catalog_data
 ```
 
 See [Build a catalog](#build-a-catalog) for building this from scratch. 
@@ -55,47 +62,46 @@ sla <- catalog |>
 # Get the GDAL-ready DSN
 dsn <- sla$timeChunked_gdal[1]
 dsn
-#> 'ZARR:"/vsis3/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.25deg_P1D_202411/timeChunked.zarr"'
+#> 'ZARR:"/vsicurl/https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.25deg_P1D_202411/timeChunked.zarr"'
 ```
 
 ### Read data directly
 
-Set up the environment once per session:
+The default `*_gdal` columns use `/vsicurl/` and work without any setup:
 
 ```{r}
-cmems_setup()  
-# Sets AWS_NO_SIGN_REQUEST=YES, AWS_S3_ENDPOINT=s3.waw3-1.cloudferro.com
-```
 
-Then use your preferred GDAL interface:
+ds <- new(gdalraster::GDALRaster, dsn_2d)
+ds$info()
+ds$close()
 
-```{r}
+writeLines(substr(gdalraster::mdim_info(dsn, cout = FALSE), 1, 500))
+
+
 library(vapour)
 
 # List available arrays/variables
-vapour_sds_names(dsn)
-#> [1] 'ZARR:".../timeChunked.zarr":/sla'
-#> [2] 'ZARR:".../timeChunked.zarr":/adt'
-#> [3] 'ZARR:".../timeChunked.zarr":/ugos'
-#> ...
+sds <- vapour_sds_names(dsn)
+gsub(substr(sds[1], 21, 166), "...", sds)
+
 
 # Get var-specific DSN
 sla_dsn <- cmems_gdal_dsn(sla$timeChunked_url[1], array = "sla")
 
 # Read var info
-
-str(jsonlite::fromJSON(gdalraster::mdim_info(dsn, cout = FALSE))[1:4])
-
+vapour_raster_info(sla_dsn)
 
 # Read a spatial subset at specific time index (band)
 extent <- c(100, 160, -50, 0)  
 band <- 1000  # time index
-dat <- vapour_warp_raster(
- sla_dsn, 
- extent = extent,
- dimension = c(512, 512),
- bands = band
-)
+## TBD "vrt://ZARR:\"/vsicurl/https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.25deg_P1D_202311/timeChunked.zarr\":/sla?bands=1&a_srs=EPSG:4326"
+
+# dat <- gdal_raster_data(
+#  sla_dsn, 
+#  extent = extent,
+#  dimension = c(512, 512),
+#  bands = band
+# )
 ```
 
 With terra:
@@ -103,15 +109,18 @@ With terra:
 ```{r}
 library(terra)
 
-r <- rast(sla_dsn)
-r
-#> class       : SpatRaster 
-#> dimensions  : 720, 1440, 10000+ (nrow, ncol, nlyr)
-#> ...
+## first band of "adt" var (using Classic syntax for ZARR driver)
+dsn_2d <- sprintf("%s:/adt:1", dsn)
+r <- rast(dsn_2d)
+plot(crop(r, ext(140, 160, -50, -30)))
 
-# Subset by extent and time
-r_sub <- r[[1000:1010]] |> 
- crop(ext(100, 160, -50, 0))
+```
+
+For `/vsis3/` access (may be faster in some cases), use the `*_gdals3` columns with `cmems_setup()`:
+
+```{r}
+cmems_setup()  # Sets AWS_NO_SIGN_REQUEST=YES, AWS_S3_ENDPOINT=...
+dsn_s3 <- sla$timeChunked_gdals3[1]
 ```
 
 ### Direct URL construction
@@ -165,15 +174,16 @@ Choose your Zarr based on access pattern:
 Wrong chunk type = many more HTTP requests = slow.
 
 
+
 ### Build a catalog
 
 Walk the STAC catalog to get all products, datasets, and their Zarr URLs:
 
-```{r build-catalog, eval=TRUE}
+```{r, catalog, eval=FALSE}
 library(cmemsarco)
 
-# Get everything (takes several minutes)
-# catalog <- cmems_catalog()
+# Get everything (takes a few minutes)
+catalog <- cmems_catalog()
 
 # Or specific products
 catalog <- cmems_catalog(
@@ -184,10 +194,14 @@ catalog <- cmems_catalog(
 )
 
 # Filter to ARCO-only (drops static/native-only datasets)
-#catalog <- cmems_arco_only(catalog)
+catalog <- cmems_arco_only(catalog)
 
 catalog
-
+#> # A tibble
+#>   product_id                      dataset_id                    version timeChunked_url
+#>   <chr>                           <chr>                         <chr>   <chr>
+#> 1 SEALEVEL_GLO_PHY_L4_NRT_008_046 cmems_obs-sl_glo_phy-ssh_...  202411  https://s3...
+#> ...
 ```
 
 

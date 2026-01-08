@@ -7,7 +7,7 @@ library(cmemsarco)
 cmems_catalog_data <- cmems_catalog(progress = TRUE)
 
 # Filter to ARCO-only (optional - keeps file smaller)
-cmems_catalog_data <- cmems_arco_only(cmems_catalog_data)
+#cmems_catalog_data <- cmems_arco_only(cmems_catalog_data)
 
 # Save to package data
 usethis::use_data(cmems_catalog_data, overwrite = TRUE)

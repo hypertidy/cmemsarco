@@ -10,7 +10,8 @@ cmems_arco_dsn(
   version,
   chunk_type = c("time", "geo"),
   bucket_version = "045",
-  array = NULL
+  array = NULL,
+  use_s3 = FALSE
 )
 }
 \arguments{
@@ -25,6 +26,8 @@ cmems_arco_dsn(
 \item{bucket_version}{Bucket suffix (e.g., "045", "042"). Varies by product.}
 
 \item{array}{Optional array/variable name}
+
+\item{use_s3}{Use \verb{/vsis3/} instead of \verb{/vsicurl/} (requires \code{\link[=cmems_setup]{cmems_setup()}})}
 }
 \value{
 GDAL DSN string

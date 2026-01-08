@@ -2,7 +2,7 @@
 % Please edit documentation in R/cmemsarco.R
 \name{cmems_setup}
 \alias{cmems_setup}
-\title{Set up GDAL environment for CMEMS access}
+\title{Set up GDAL environment for CMEMS S3 access}
 \usage{
 cmems_setup()
 }
@@ -10,7 +10,8 @@ cmems_setup()
 Invisible TRUE
 }
 \description{
-Sets AWS environment variables required for anonymous S3 access to CMEMS.
+Sets AWS environment variables required for \verb{/vsis3/} access to CMEMS.
+Not needed if using the default \verb{/vsicurl/} DSNs.
 }
 \examples{
 cmems_setup()

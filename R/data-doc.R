@@ -13,8 +13,10 @@
 #'   \item{timeChunked_url}{HTTPS URL to timeChunked.zarr (spatial slice access)}
 #'   \item{geoChunked_url}{HTTPS URL to geoChunked.zarr (time series access)}
 #'   \item{native_url}{URL to native files (if available)}
-#'   \item{timeChunked_gdal}{GDAL-ready DSN for timeChunked store}
-#'   \item{geoChunked_gdal}{GDAL-ready DSN for geoChunked store}
+#'   \item{timeChunked_gdal}{GDAL DSN using /vsicurl/ (no setup needed)}
+#'   \item{geoChunked_gdal}{GDAL DSN using /vsicurl/ (no setup needed)}
+#'   \item{timeChunked_gdals3}{GDAL DSN using /vsis3/ (needs cmems_setup())}
+#'   \item{geoChunked_gdals3}{GDAL DSN using /vsis3/ (needs cmems_setup())}
 #'   \item{timeChunked_s3}{S3 URI for timeChunked store}
 #'   \item{geoChunked_s3}{S3 URI for geoChunked store}
 #' }

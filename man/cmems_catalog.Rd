@@ -13,8 +13,7 @@ cmems_catalog(product_ids = NULL, progress = TRUE)
 }
 \value{
 A tibble with columns: product_id, dataset_version_id, dataset_id,
-version, timeChunked_url, geoChunked_url, native_url, plus _gdal and _s3
-variants
+version, timeChunked_url, geoChunked_url, native_url, and GDAL/S3 variants
 }
 \description{
 Walks the STAC catalog to retrieve all products, datasets, and Zarr URLs.

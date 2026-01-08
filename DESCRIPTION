@@ -1,21 +1,24 @@
 Package: cmemsarco
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Title: Cloud-Native Access to Copernicus Marine ARCO Zarr Stores
+Version: 0.1.0
 Authors@R: 
     person("Michael", "Sumner", , "mdsumner@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-2471-7511"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+Description: Build and query a catalog of Copernicus Marine Service (CMEMS) 
+    Analysis-Ready Cloud-Optimized (ARCO) Zarr datasets. Provides GDAL-ready
+    data source names for direct access to 'timeChunked' and 'geoChunked' Zarr
+    stores without file downloads or directory listings. Default DSNs use
+    '/vsicurl/' for zero-configuration access. Catalog is built by walking
+    the CMEMS STAC API at <https://stac.marine.copernicus.eu>.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Imports: 
     dplyr,
     httr2,
-    jsonlite,
     purrr,
-    tidyr
+    tibble
 URL: https://github.com/hypertidy/cmemsarco
 BugReports: https://github.com/hypertidy/cmemsarco/issues
 Depends: 
