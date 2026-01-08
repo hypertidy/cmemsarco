@@ -5,8 +5,7 @@ output: github_document
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>",
-  eval = FALSE
+  comment = "#>"
 )
 ```
 
@@ -21,12 +20,12 @@ Cloud-native access to Copernicus Marine (CMEMS) ARCO Zarr stores. No file downl
  
 ## Installation
 
-```{r}
-# install.packages("pak")
-pak::pak("mdsumner/cmemsarco")
+```{r install, eval = FALSE}
+# install.packages("remotes")
+remotes::install_github("hypertidy/cmemsarco")
 ```
 
-## The idea
+## Analysis ready data sources from Copernicus Marine
 
 CMEMS provides Analysis-Ready Cloud-Optimized (ARCO) Zarr stores for their marine datasets. These are chunked for two access patterns:
 
@@ -56,13 +55,12 @@ See [Build a catalog](#build-a-catalog) for building this from scratch.
 ```{r}
 # Filter to what you need
 sla <- catalog |>
-  dplyr::filter(product_id == "SEALEVEL_GLO_PHY_L4_NRT_008_046") |>
+  dplyr::filter(product_id == "SEALEVEL_GLO_PHY_L4_MY_008_047") |>
   cmems_latest()  # latest version per dataset
 
 # Get the GDAL-ready DSN
 dsn <- sla$timeChunked_gdal[1]
 dsn
-#> 'ZARR:"/vsicurl/https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.25deg_P1D_202411/timeChunked.zarr"'
 ```
 
 ### Read data directly
@@ -70,6 +68,8 @@ dsn
 The default `*_gdal` columns use `/vsicurl/` and work without any setup:
 
 ```{r}
+## first band of "adt" var (using Classic syntax for ZARR driver)
+dsn_2d <- sprintf("%s:/adt:0", dsn)
 
 ds <- new(gdalraster::GDALRaster, dsn_2d)
 ds$info()
@@ -110,9 +110,9 @@ With terra:
 library(terra)
 
 ## first band of "adt" var (using Classic syntax for ZARR driver)
-dsn_2d <- sprintf("%s:/adt:1", dsn)
+dsn_2d <- sprintf("%s:/adt:0", dsn)
 r <- rast(dsn_2d)
-plot(crop(r, ext(140, 160, -50, -30)))
+plot(crop(r, ext(110, 160, -60, -30)), smooth = FALSE)
 
 ```
 
@@ -179,7 +179,7 @@ Wrong chunk type = many more HTTP requests = slow.
 
 Walk the STAC catalog to get all products, datasets, and their Zarr URLs:
 
-```{r, catalog, eval=FALSE}
+```{r, catalog-refresh-full, eval=FALSE}
 library(cmemsarco)
 
 # Get everything (takes a few minutes)
