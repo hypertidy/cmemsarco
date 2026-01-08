@@ -1,0 +1,161 @@
+---
+title: "Introduction to cmemsarco"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to cmemsarco}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+## Overview
+ 
+cmemsarco provides cloud-native access to Copernicus Marine Service (CMEMS) 
+Analysis-Ready Cloud-Optimized (ARCO) Zarr datasets. The package builds a 
+catalog of GDAL-ready data source names, letting you go straight from URL to 
+pixels without file downloads, directory listings, format, or tool wrangling.
+
+```{r}
+library(cmemsarco)
+
+# The bundled catalog
+cmems_catalog_data
+#> # A tibble: 1,730 × 13
+#>    product_id       dataset_version_id  timeChunked_url geoChunked_url ...
+```
+
+## The catalog
+
+The catalog is built by walking the CMEMS STAC API. Each row represents a 
+versioned dataset with URLs to Zarr stores in different formats:
+
+| Column | Description |
+|--------|-------------|
+| `product_id` | CMEMS product identifier |
+| `dataset_id` | Dataset identifier (without version) |
+| `version` | 6-digit version (YYYYMM) |
+| `timeChunked_url` | HTTPS URL to timeChunked.zarr |
+| `geoChunked_url` | HTTPS URL to geoChunked.zarr |
+| `*_gdal` | GDAL DSN using `/vsicurl/` |
+| `*_gdals3` | GDAL DSN using `/vsis3/` |
+| `*_s3` | S3 URI (`s3://bucket/path`) |
+
+Use `cmems_latest()` to keep only the most recent version of each dataset, 
+and `cmems_arco_only()` to drop datasets without Zarr URLs (static/native-only).
+
+```{r}
+cmems_catalog_data |>
+  cmems_arco_only() |>
+  cmems_latest()
+```
+
+## Chunking strategies
+
+CMEMS provides two Zarr stores for each dataset, optimised for different 
+access patterns:
+ 
+**timeChunked** (chunks: 1 × 720 × 512 in time × lat × lon)
+
+- One time step per chunk in the time dimension
+- Use for spatial queries: maps, regional extracts, spatial analysis
+- Efficient when you need a large area at one or few time steps
+
+**geoChunked** (chunks: 138 × 32 × 64 in time × lat × lon)
+
+- Many time steps per chunk, small spatial footprint
+- Use for time series: point extraction, temporal analysis
+- Efficient when you need many time steps at one or few locations
+
+Choosing the wrong chunking strategy means many more HTTP requests and 
+slower performance.
+
+## URL formats
+
+Each Zarr store is available in four formats. Use whichever suits your 
+tooling:
+
+### `*_gdal` — zero configuration (recommended)
+
+Uses GDAL's `/vsicurl/` handler which works without any environment setup:
+
+```{r, eval = FALSE}
+dsn <- cmems_catalog_data$timeChunked_gdal[1]
+#> 'ZARR:"/vsicurl/https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/..."'
+
+# Works immediately with any GDAL-based tool
+vapour::vapour_raster_info(dsn)
+terra::rast(dsn)
+```
+
+### `*_gdals3` — S3 protocol
+
+Uses GDAL's `/vsis3/` handler which requires `cmems_setup()` first to 
+configure the AWS endpoint:
+
+```{r}
+cmems_setup()  # Sets AWS_NO_SIGN_REQUEST=YES, AWS_S3_ENDPOINT=...
+
+dsn <- cmems_catalog_data$timeChunked_gdals3[1]
+#> 'ZARR:"/vsis3/mdl-arco-time-045/arco/..."'
+```
+
+This may offer better performance in some cases due to S3-specific 
+optimisations in GDAL.
+
+### `*_s3` — S3 URI
+
+Standard `s3://` URIs for use with S3-aware tools:
+
+```{r}
+uri <- cmems_catalog_data$timeChunked_s3[1]
+#> 's3://mdl-arco-time-045/arco/...'
+```
+
+### `*_url` — raw HTTPS
+
+The underlying HTTPS URLs, useful if you need to construct your own 
+access pattern:
+
+```{r}
+url <- cmems_catalog_data$timeChunked_url[1]
+#> 'https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/...'
+```
+
+## Typical workflow
+
+```{r}
+library(cmemsarco)
+
+# Find your dataset
+sla <- cmems_catalog_data |>
+  dplyr::filter(grepl("SEALEVEL.*NRT", product_id)) |>
+  cmems_latest()
+
+# Grab the DSN (no setup needed)
+dsn <- sla$timeChunked_gdal[1]
+dsn
+```
+
+## Refreshing the catalog
+
+The bundled catalog is a snapshot. To get the latest datasets:
+
+```{r}
+fresh <- cmems_catalog()
+```
+
+This walks the STAC API and takes a few minutes for all ~330 products.
+
+## Why this works
+
+The CMEMS S3 buckets don't allow LIST operations, but GDAL's Zarr driver 
+doesn't need them. It reads `/.zmetadata` to understand the array structure, 
+then fetches only the chunks required for your read operation. No directory 
+listings, no full downloads—just the bytes you need.
