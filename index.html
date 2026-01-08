@@ -68,7 +68,323 @@
 
       </header><div class="row">
   <div class="contents col-md-9">
-Build and query a catalog of Copernicus Marine Service (CMEMS) Analysis-Ready Cloud-Optimized (ARCO) Zarr datasets. Provides GDAL-ready data source names for direct access to 'timeChunked' and 'geoChunked' Zarr stores without file downloads or directory listings. Default DSNs use '/vsicurl/' for zero-configuration access. Catalog is built by walking the CMEMS STAC API at &lt;<a href="https://stac.marine.copernicus.eu" class="external-link">https://stac.marine.copernicus.eu</a>&gt;.
+
+
+<div class="section level1">
+<div class="page-header"><h1 id="cmemsarco">cmemsarco<a class="anchor" aria-label="anchor" href="#cmemsarco"></a>
+</h1></div>
+<p>Cloud-native access to Copernicus Marine (CMEMS) ARCO Zarr stores. No file downloads, no directory listings, no NetCDF wrangling - just URLs and GDAL.</p>
+<div class="section level2">
+<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h2>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># install.packages("remotes")</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"hypertidy/cmemsarco"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="analysis-ready-data-sources-from-copernicus-marine">Analysis ready data sources from Copernicus Marine<a class="anchor" aria-label="anchor" href="#analysis-ready-data-sources-from-copernicus-marine"></a>
+</h2>
+<p>CMEMS provides Analysis-Ready Cloud-Optimized (ARCO) Zarr stores for their marine datasets. These are chunked for two access patterns:</p>
+<table class="table">
+<colgroup>
+<col width="25%">
+<col width="25%">
+<col width="25%">
+<col width="25%">
+</colgroup>
+<thead><tr class="header">
+<th>Bucket</th>
+<th>Zarr</th>
+<th>Chunks</th>
+<th>Use case</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>mdl-arco-geo-*</code></td>
+<td><code>geoChunked.zarr</code></td>
+<td>(138, 32, 64)</td>
+<td>Time series at a point</td>
+</tr>
+<tr class="even">
+<td><code>mdl-arco-time-*</code></td>
+<td><code>timeChunked.zarr</code></td>
+<td>(1, 720, 512)</td>
+<td>Spatial slice at one time</td>
+</tr>
+</tbody>
+</table>
+<p>The S3 buckets don’t allow LIST operations, but GDAL’s Zarr driver doesn’t need them - it reads <code>/.zmetadata</code> and derives chunk paths from the Zarr spec. This means you can go straight from URL to pixels with no intermediate steps.</p>
+</div>
+<div class="section level2">
+<h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
+</h2>
+<p>cmemsarco comes with a ready to use catalog:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/hypertidy/cmemsarco" class="external-link">cmemsarco</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">cmems_catalog_data</span><span class="op">)</span></span>
+<span><span class="va">catalog</span> <span class="op">&lt;-</span> <span class="va">cmems_catalog_data</span></span></code></pre></div>
+<p>See <a href="#build-a-catalog">Build a catalog</a> for building this from scratch.</p>
+<div class="section level3">
+<h3 id="get-a-gdal-source">Get a GDAL source<a class="anchor" aria-label="anchor" href="#get-a-gdal-source"></a>
+</h3>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Filter to what you need</span></span>
+<span><span class="va">sla</span> <span class="op">&lt;-</span> <span class="va">catalog</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">product_id</span> <span class="op">==</span> <span class="st">"SEALEVEL_GLO_PHY_L4_MY_008_047"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="reference/cmems_latest.html">cmems_latest</a></span><span class="op">(</span><span class="op">)</span>  <span class="co"># latest version per dataset</span></span>
+<span></span>
+<span><span class="co"># Get the GDAL-ready DSN</span></span>
+<span><span class="va">dsn</span> <span class="op">&lt;-</span> <span class="va">sla</span><span class="op">$</span><span class="va">timeChunked_gdal</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span></span>
+<span><span class="va">dsn</span></span>
+<span><span class="co">#&gt; [1] "ZARR:\"/vsicurl/https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr\""</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="read-data-directly">Read data directly<a class="anchor" aria-label="anchor" href="#read-data-directly"></a>
+</h3>
+<p>The default <code>*_gdal</code> columns use <code>/vsicurl/</code> and work without any setup:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co">## first band of "adt" var (using Classic syntax for ZARR driver)</span></span>
+<span><span class="va">dsn_2d</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"%s:/adt:0"</span>, <span class="va">dsn</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">ds</span> <span class="op">&lt;-</span> <span class="fu">new</span><span class="op">(</span><span class="fu">gdalraster</span><span class="fu">::</span><span class="va">GDALRaster</span>, <span class="va">dsn_2d</span><span class="op">)</span></span>
+<span><span class="co">#&gt; GDAL WARNING 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/.zarray: 403</span></span>
+<span><span class="co">#&gt; GDAL WARNING 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/crs/.zarray: 403</span></span>
+<span><span class="co">#&gt; GDAL WARNING 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/longitude/.zarray.gmac: 403</span></span>
+<span><span class="co">#&gt; GDAL WARNING 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/latitude/.zarray.gmac: 403</span></span>
+<span><span class="co">#&gt; GDAL WARNING 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/adt/.zarray.aux.xml: 403</span></span>
+<span><span class="co">#&gt; GDAL WARNING 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/adt/.aux: 403</span></span>
+<span><span class="co">#&gt; GDAL WARNING 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/adt/.AUX: 403</span></span>
+<span><span class="co">#&gt; GDAL WARNING 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/adt/.zarray.aux: 403</span></span>
+<span><span class="co">#&gt; GDAL WARNING 1: HTTP response code on https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/adt/.zarray.AUX: 403</span></span>
+<span><span class="va">ds</span><span class="op">$</span><span class="fu">info</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Driver: Zarr/Zarr</span></span>
+<span><span class="co">#&gt; Files: /vsicurl/https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/adt/.zarray</span></span>
+<span><span class="co">#&gt; Size is 2880, 1440</span></span>
+<span><span class="co">#&gt; Origin = (-180.000000000000000,-90.000000000000000)</span></span>
+<span><span class="co">#&gt; Pixel Size = (0.125000000000000,0.125000000000000)</span></span>
+<span><span class="co">#&gt; Metadata:</span></span>
+<span><span class="co">#&gt;   comment=The absolute dynamic topography is the sea surface height above geoid; the adt is obtained as follows: adt=sla+mdt where mdt is the mean dynamic topography; see the product user manual for details</span></span>
+<span><span class="co">#&gt;   coordinates=longitude latitude</span></span>
+<span><span class="co">#&gt;   grid_mapping=crs</span></span>
+<span><span class="co">#&gt;   long_name=Absolute dynamic topography</span></span>
+<span><span class="co">#&gt;   standard_name=sea_surface_height_above_geoid</span></span>
+<span><span class="co">#&gt; Corner Coordinates:</span></span>
+<span><span class="co">#&gt; Upper Left  (-180.0000000, -90.0000000) </span></span>
+<span><span class="co">#&gt; Lower Left  (-180.0000000,  90.0000000) </span></span>
+<span><span class="co">#&gt; Upper Right ( 180.0000000, -90.0000000) </span></span>
+<span><span class="co">#&gt; Lower Right ( 180.0000000,  90.0000000) </span></span>
+<span><span class="co">#&gt; Center      (   0.0000000,   0.0000000) </span></span>
+<span><span class="co">#&gt; Band 1 Block=1024x512 Type=Int32, ColorInterp=Undefined</span></span>
+<span><span class="co">#&gt;   NoData Value=-2147483647</span></span>
+<span><span class="co">#&gt;   Unit Type: m</span></span>
+<span><span class="co">#&gt;   Offset: 0,   Scale:0.0001</span></span>
+<span><span class="va">ds</span><span class="op">$</span><span class="fu">close</span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="fu">gdalraster</span><span class="fu">::</span><span class="fu">mdim_info</span><span class="op">(</span><span class="va">dsn</span>, cout <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span>, <span class="fl">1</span>, <span class="fl">500</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; {</span></span>
+<span><span class="co">#&gt;   "type": "group",</span></span>
+<span><span class="co">#&gt;   "driver": "Zarr",</span></span>
+<span><span class="co">#&gt;   "name": "/",</span></span>
+<span><span class="co">#&gt;   "attributes": {</span></span>
+<span><span class="co">#&gt;     "Conventions": "CF-1.6",</span></span>
+<span><span class="co">#&gt;     "Metadata_Conventions": "Unidata Dataset Discovery v1.0",</span></span>
+<span><span class="co">#&gt;     "cdm_data_type": "Grid",</span></span>
+<span><span class="co">#&gt;     "comment": "Sea Surface Height measured by Altimetry and derived variables",</span></span>
+<span><span class="co">#&gt;     "contact": "servicedesk.cmems@mercator-ocean.eu",</span></span>
+<span><span class="co">#&gt;     "coordinates": "lon_bnds lat_bnds",</span></span>
+<span><span class="co">#&gt;     "creator_email": "servicedesk.cmems@mercator-ocean.eu",</span></span>
+<span><span class="co">#&gt;     "creator_name": "CMEMS - Sea Level Thematic Assembly Center",</span></span>
+<span><span class="co">#&gt;     "</span></span>
+<span></span>
+<span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/hypertidy/vapour" class="external-link">vapour</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># List available arrays/variables</span></span>
+<span><span class="va">sds</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://hypertidy.github.io/vapour/reference/vapour_sds_names.html" class="external-link">vapour_sds_names</a></span><span class="op">(</span><span class="va">dsn</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="va">sds</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>, <span class="fl">21</span>, <span class="fl">166</span><span class="op">)</span>, <span class="st">"..."</span>, <span class="va">sds</span><span class="op">)</span></span>
+<span><span class="co">#&gt;  [1] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/adt"      </span></span>
+<span><span class="co">#&gt;  [2] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/err_sla"  </span></span>
+<span><span class="co">#&gt;  [3] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/err_ugosa"</span></span>
+<span><span class="co">#&gt;  [4] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/err_vgosa"</span></span>
+<span><span class="co">#&gt;  [5] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/flag_ice" </span></span>
+<span><span class="co">#&gt;  [6] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/lat_bnds" </span></span>
+<span><span class="co">#&gt;  [7] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/lon_bnds" </span></span>
+<span><span class="co">#&gt;  [8] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/sla"      </span></span>
+<span><span class="co">#&gt;  [9] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/ugos"     </span></span>
+<span><span class="co">#&gt; [10] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/ugosa"    </span></span>
+<span><span class="co">#&gt; [11] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/vgos"     </span></span>
+<span><span class="co">#&gt; [12] "ZARR:\"/vsicurl/https...timeChunked.zarr\":/vgosa"</span></span>
+<span></span>
+<span></span>
+<span><span class="co"># Get var-specific DSN</span></span>
+<span><span class="va">sla_dsn</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cmems_gdal_dsn.html">cmems_gdal_dsn</a></span><span class="op">(</span><span class="va">sla</span><span class="op">$</span><span class="va">timeChunked_url</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>, array <span class="op">=</span> <span class="st">"sla"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Read var info</span></span>
+<span><span class="fu"><a href="https://hypertidy.github.io/vapour/reference/vapour_raster_info.html" class="external-link">vapour_raster_info</a></span><span class="op">(</span><span class="va">sla_dsn</span><span class="op">)</span></span>
+<span><span class="co">#&gt; $geotransform</span></span>
+<span><span class="co">#&gt; [1] -180.000    0.125    0.000  -90.000    0.000    0.125</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $dimension</span></span>
+<span><span class="co">#&gt; [1] 2880 1440</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $dimXY</span></span>
+<span><span class="co">#&gt; [1] 2880 1440</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $minmax</span></span>
+<span><span class="co">#&gt; NULL</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $block</span></span>
+<span><span class="co">#&gt; [1] 1024  512</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $projection</span></span>
+<span><span class="co">#&gt; NULL</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $bands</span></span>
+<span><span class="co">#&gt; [1] 11809</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $projstring</span></span>
+<span><span class="co">#&gt; NULL</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $nodata_value</span></span>
+<span><span class="co">#&gt; [1] -2147483647</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $overviews</span></span>
+<span><span class="co">#&gt; NULL</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $filelist</span></span>
+<span><span class="co">#&gt; [1] "/vsicurl/https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_MY_008_047/cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D_202411/timeChunked.zarr/sla/.zarray"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $datatype</span></span>
+<span><span class="co">#&gt; [1] "Int32"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $extent</span></span>
+<span><span class="co">#&gt; [1] -180  180  -90   90</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $subdatasets</span></span>
+<span><span class="co">#&gt; NULL</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $corners</span></span>
+<span><span class="co">#&gt;            [,1] [,2]</span></span>
+<span><span class="co">#&gt; upperLeft  -180  -90</span></span>
+<span><span class="co">#&gt; lowerLeft  -180   90</span></span>
+<span><span class="co">#&gt; lowerRight  180   90</span></span>
+<span><span class="co">#&gt; upperRight  180  -90</span></span>
+<span><span class="co">#&gt; center        0    0</span></span>
+<span></span>
+<span><span class="co"># Read a spatial subset at specific time index (band)</span></span>
+<span><span class="va">extent</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">100</span>, <span class="fl">160</span>, <span class="op">-</span><span class="fl">50</span>, <span class="fl">0</span><span class="op">)</span>  </span>
+<span><span class="va">band</span> <span class="op">&lt;-</span> <span class="fl">1000</span>  <span class="co"># time index</span></span>
+<span><span class="co">## TBD "vrt://ZARR:\"/vsicurl/https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.25deg_P1D_202311/timeChunked.zarr\":/sla?bands=1&amp;a_srs=EPSG:4326"</span></span>
+<span></span>
+<span><span class="co"># dat &lt;- gdal_raster_data(</span></span>
+<span><span class="co">#  sla_dsn, </span></span>
+<span><span class="co">#  extent = extent,</span></span>
+<span><span class="co">#  dimension = c(512, 512),</span></span>
+<span><span class="co">#  bands = band</span></span>
+<span><span class="co"># )</span></span></code></pre></div>
+<p>With terra:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rspatial.org/" class="external-link">terra</a></span><span class="op">)</span></span>
+<span><span class="co">#&gt; terra 1.8.91</span></span>
+<span></span>
+<span><span class="co">## first band of "adt" var (using Classic syntax for ZARR driver)</span></span>
+<span><span class="va">dsn_2d</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"%s:/adt:0"</span>, <span class="va">dsn</span><span class="op">)</span></span>
+<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rspatial.github.io/terra/reference/rast.html" class="external-link">rast</a></span><span class="op">(</span><span class="va">dsn_2d</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rspatial.github.io/terra/reference/plot.html" class="external-link">plot</a></span><span class="op">(</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/crop.html" class="external-link">crop</a></span><span class="op">(</span><span class="va">r</span>, <span class="fu"><a href="https://rspatial.github.io/terra/reference/ext.html" class="external-link">ext</a></span><span class="op">(</span><span class="fl">110</span>, <span class="fl">160</span>, <span class="op">-</span><span class="fl">60</span>, <span class="op">-</span><span class="fl">30</span><span class="op">)</span><span class="op">)</span>, smooth <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+<p><img src="README_files/figure-gfm/unnamed-chunk-4-1.png"><!-- --></p>
+<p>For <code>/vsis3/</code> access (may be faster in some cases), use the <code>*_gdals3</code> columns with <code><a href="reference/cmems_setup.html">cmems_setup()</a></code>:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/cmems_setup.html">cmems_setup</a></span><span class="op">(</span><span class="op">)</span>  <span class="co"># Sets AWS_NO_SIGN_REQUEST=YES, AWS_S3_ENDPOINT=...</span></span>
+<span><span class="va">dsn_s3</span> <span class="op">&lt;-</span> <span class="va">sla</span><span class="op">$</span><span class="va">timeChunked_gdals3</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="direct-url-construction">Direct URL construction<a class="anchor" aria-label="anchor" href="#direct-url-construction"></a>
+</h3>
+<p>If you already know the product, dataset, and version (e.g. from <code>copernicusmarine describe</code>), skip the catalog:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dsn</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cmems_arco_dsn.html">cmems_arco_dsn</a></span><span class="op">(</span></span>
+<span> product_id <span class="op">=</span> <span class="st">"SEALEVEL_GLO_PHY_L4_NRT_008_046"</span>,</span>
+<span> dataset_id <span class="op">=</span> <span class="st">"cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.25deg_P1D"</span>,</span>
+<span> version <span class="op">=</span> <span class="st">"202411"</span>,</span>
+<span> chunk_type <span class="op">=</span> <span class="st">"time"</span>,</span>
+<span> array <span class="op">=</span> <span class="st">"sla"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Note: This requires knowing the bucket version suffix (e.g., “045”) which varies by product family. The catalog approach handles this automatically.</p>
+</div>
+</div>
+<div class="section level2">
+<h2 id="why-this-works">Why this works<a class="anchor" aria-label="anchor" href="#why-this-works"></a>
+</h2>
+<p>CMEMS ARCO infrastructure:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>https<span class="sc">:</span><span class="er">//</span>s3.waw3<span class="fl">-1.</span>cloudferro.com<span class="sc">/</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a> └── mdl<span class="sc">-</span>arco<span class="sc">-</span>{time<span class="sc">|</span>geo}<span class="sc">-</span>{NNN}<span class="sc">/</span></span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>       └── arco<span class="sc">/</span></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>             └── {PRODUCT_ID}<span class="sc">/</span></span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>                   └── {dataset_id}_{version}<span class="sc">/</span></span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>                         └── {time<span class="sc">|</span>geo}Chunked.zarr<span class="sc">/</span></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>                               ├── .zmetadata</span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>                               ├── .zattrs  </span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a>                               └── {variable}<span class="sc">/</span>{chunk_indices}</span></code></pre></div>
+<p>GDAL with <code>/vsis3/</code> reads <code>.zmetadata</code> to understand the array structure, then fetches only the chunks needed for your read operation. No LIST calls, no full downloads.</p>
+<p>The STAC catalog at <code>https://stac.marine.copernicus.eu/metadata/catalog.stac.json</code> provides the authoritative mapping from product/dataset to actual S3 URLs.</p>
+</div>
+<div class="section level2">
+<h2 id="chunk-strategy">Chunk strategy<a class="anchor" aria-label="anchor" href="#chunk-strategy"></a>
+</h2>
+<p>Choose your Zarr based on access pattern:</p>
+<p><strong>timeChunked</strong> (chunks: 1 × 720 × 512 in time × lat × lon) - Spatial slices: maps at one or few time steps - Efficient for: <code><a href="https://rspatial.github.io/terra/reference/crop.html" class="external-link">crop()</a></code>, regional extracts, spatial analysis</p>
+<p><strong>geoChunked</strong> (chunks: 138 × 32 × 64 in time × lat × lon) - Time series: values at one or few locations over many times - Efficient for: point extraction, time series analysis</p>
+<p>Wrong chunk type = many more HTTP requests = slow.</p>
+<div class="section level3">
+<h3 id="build-a-catalog">Build a catalog<a class="anchor" aria-label="anchor" href="#build-a-catalog"></a>
+</h3>
+<p>Walk the STAC catalog to get all products, datasets, and their Zarr URLs:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/hypertidy/cmemsarco" class="external-link">cmemsarco</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Get everything (takes a few minutes)</span></span>
+<span><span class="va">catalog</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cmems_catalog.html">cmems_catalog</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Or specific products</span></span>
+<span><span class="va">catalog</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cmems_catalog.html">cmems_catalog</a></span><span class="op">(</span></span>
+<span>  product_ids <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"SEALEVEL_GLO_PHY_L4_NRT_008_046"</span>,</span>
+<span>    <span class="st">"GLOBAL_ANALYSISFORECAST_PHY_001_024"</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Filter to ARCO-only (drops static/native-only datasets)</span></span>
+<span><span class="va">catalog</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cmems_arco_only.html">cmems_arco_only</a></span><span class="op">(</span><span class="va">catalog</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">catalog</span></span>
+<span><span class="co">#&gt; # A tibble</span></span>
+<span><span class="co">#&gt;   product_id                      dataset_id                    version timeChunked_url</span></span>
+<span><span class="co">#&gt;   &lt;chr&gt;                           &lt;chr&gt;                         &lt;chr&gt;   &lt;chr&gt;</span></span>
+<span><span class="co">#&gt; 1 SEALEVEL_GLO_PHY_L4_NRT_008_046 cmems_obs-sl_glo_phy-ssh_...  202411  https://s3...</span></span>
+<span><span class="co">#&gt; ...</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="related">Related<a class="anchor" aria-label="anchor" href="#related"></a>
+</h2>
+<ul>
+<li>
+<a href="https://github.com/pepijn-devries/CopernicusMarine" class="external-link">CopernicusMarine</a> - R interface for CMEMS (WMTS, native files, subsetting via their API)</li>
+<li>
+<a href="https://pypi.org/project/copernicusmarine/" class="external-link">copernicusmarine</a> - Official Python toolbox</li>
+<li>
+<a href="https://github.com/hypertidy/vapour" class="external-link">vapour</a> - Lightweight GDAL</li>
+<li>
+<a href="https://github.com/JuliaGeo/ZarrDatasets.jl" class="external-link">ZarrDatasets.jl</a> - Julia equivalent (where I found clear STAC examples)</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="data-source">Data source<a class="anchor" aria-label="anchor" href="#data-source"></a>
+</h2>
+<p>EU Copernicus Marine Service Information. See individual products for citation requirements.</p>
+</div>
+</div>
+
   </div>
 
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
@@ -103,7 +419,12 @@ Build and query a catalog of Copernicus Marine Service (CMEMS) Analysis-Ready Cl
 </ul>
 </div>
 
-
+<div class="dev-status">
+<h2 data-toc-skip>Dev status</h2>
+<ul class="list-unstyled">
+<li><a href="https://github.com/hypertidy/cmemsarco/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/hypertidy/cmemsarco/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
+</ul>
+</div>
 
   </div>
 </div>
