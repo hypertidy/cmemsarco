@@ -10,8 +10,7 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>",
-  eval = FALSE
+  comment = "#>"
 )
 ```
 
@@ -27,8 +26,7 @@ library(cmemsarco)
 
 # The bundled catalog
 cmems_catalog_data
-#> # A tibble: 1,730 × 13
-#>    product_id       dataset_version_id  timeChunked_url geoChunked_url ...
+
 ```
 
 ## The catalog
@@ -90,8 +88,8 @@ dsn <- cmems_catalog_data$timeChunked_gdal[1]
 #> 'ZARR:"/vsicurl/https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/..."'
 
 # Works immediately with any GDAL-based tool
-vapour::vapour_raster_info(dsn)
-terra::rast(dsn)
+#vapour::vapour_raster_info(dsn)
+#terra::rast(dsn)
 ```
 
 ### `*_gdals3` — S3 protocol
@@ -102,8 +100,8 @@ configure the AWS endpoint:
 ```{r}
 cmems_setup()  # Sets AWS_NO_SIGN_REQUEST=YES, AWS_S3_ENDPOINT=...
 
-dsn <- cmems_catalog_data$timeChunked_gdals3[1]
-#> 'ZARR:"/vsis3/mdl-arco-time-045/arco/..."'
+dsn <- cmems_catalog_data$timeChunked_gdals3[1L]
+dsn
 ```
 
 This may offer better performance in some cases due to S3-specific 
@@ -115,7 +113,7 @@ Standard `s3://` URIs for use with S3-aware tools:
 
 ```{r}
 uri <- cmems_catalog_data$timeChunked_s3[1]
-#> 's3://mdl-arco-time-045/arco/...'
+uri
 ```
 
 ### `*_url` — raw HTTPS
@@ -125,7 +123,7 @@ access pattern:
 
 ```{r}
 url <- cmems_catalog_data$timeChunked_url[1]
-#> 'https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/...'
+url
 ```
 
 ## Typical workflow
@@ -147,8 +145,8 @@ dsn
 
 The bundled catalog is a snapshot. To get the latest datasets:
 
-```{r}
-fresh <- cmems_catalog()
+```{r, eval = FALSE}
+#fresh <- cmems_catalog()
 ```
 
 This walks the STAC API and takes a few minutes for all ~330 products.
