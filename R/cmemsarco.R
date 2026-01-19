@@ -226,8 +226,8 @@ cmems_catalog <- function(product_ids = NULL, progress = TRUE) {
 cmems_latest <- function(catalog) {
   catalog |>
     dplyr::filter(!is.na(version)) |>
-    dplyr::group_by(product_id, dataset_id) |>
-    dplyr::filter(version == max(version)) |>
+    dplyr::group_by(product_id) |>
+    dplyr::filter(dataset_version_id == max(dataset_version_id)) |>
     dplyr::ungroup()
 }
 
