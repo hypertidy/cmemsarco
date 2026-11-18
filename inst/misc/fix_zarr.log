@@ -1,0 +1,42 @@
+Opening: https://s3.waw3-1.cloudferro.com/mdl-arco-time-045/arco/SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.125deg_P1D_202506/timeChunked.zarr
+Variables: ['adt', 'err_sla', 'err_ugosa', 'err_vgosa', 'flag_ice', 'sla', 'ugos', 'ugosa', 'vgos', 'vgosa']
+Dimensions: {'time': 557, 'latitude': 1440, 'longitude': 2880, 'nv': 2}
+Subset dims: {'time': 2, 'latitude': 160, 'longitude': 160}
+
+Original 'sla' attributes:
+  ancillary_variables: err_sla
+  comment: The sea level anomaly is the sea surface height above mean sea surface; it is referenced to the [1993, 2012] period; see the product user manual for details
+  grid_mapping: crs
+  long_name: Sea level anomaly
+  standard_name: sea_surface_height_above_sea_level
+  units: m
+
+'grid_mapping' present: True
+'crs' variable present: False
+
+Writing original to cmems_original.zarr...
+
+Fixed 'sla' attributes:
+  ancillary_variables: err_sla
+  comment: The sea level anomaly is the sea surface height above mean sea surface; it is referenced to the [1993, 2012] period; see the product user manual for details
+  grid_mapping: crs
+  long_name: Sea level anomaly
+  standard_name: sea_surface_height_above_sea_level
+  units: m
+
+'crs' variable present: True
+'crs' attrs: ['grid_mapping_name', 'crs_wkt', 'semi_major_axis', 'inverse_flattening', 'longitude_of_prime_meridian', 'spatial_ref']
+
+Writing fixed to cmems_with_crs.zarr...
+
+==================================================
+Comparing .zmetadata files
+==================================================
+
+Original:
+  'grid_mapping' in metadata: True
+  'crs/.zattrs' key exists: False
+
+Fixed:
+  'grid_mapping' in metadata: True
+  'crs/.zattrs' key exists: True
