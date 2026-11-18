@@ -1,3 +1,11 @@
+# cmemsarco (development version)
+
+* Refreshed the bundled `cmems_catalog_data` from the STAC catalog
+  (2026-11-18): 1851 datasets (1299 with ARCO Zarr URLs) across 364
+  products. Retired dataset versions are gone, for example
+  `ESACCI-GLO-SST-L4-REP-OBS-SST_202211`, whose stores now return 403;
+  `cmems_latest()` now picks its replacement, `_202603`.
+
 # cmemsarco 0.1.0
 
 * Initial release.
